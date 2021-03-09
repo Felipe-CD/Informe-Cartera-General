@@ -1,0 +1,18 @@
+{% extends "indexf.html" %}
+
+{% block content %}
+<p></p>
+<h3>UNO O MAS ARCHIVOS PRESENTAN ERRRORES</h3>
+<p>Verifique y corrija los siguientes errrores antes de Volver y ejecutar de nuevo el programa</p>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for msg in messages %}
+        <p>{{msg}}</p>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+<div class="d-grid gap-2 col-6 mx-auto">
+  <a href="/" class="btn btn-primary">Volver</a>
+  <!--<button type="button" class="btn btn-primary" onclick="location.href='/';">Volver</button>-->
+</div>
+{% endblock %}

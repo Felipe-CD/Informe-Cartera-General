@@ -1,0 +1,35 @@
+{% extends "indexf.html" %}
+
+{% block content %}
+<p></p>
+<h3 class="text-center">Cartera General</h3>
+<p></p>
+<form action="#" method="POST" enctype="multipart/form-data">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-6">
+                <label for="formGroupExampleInput" class="form-label">Seleccione el archivo SAP</label>
+                <input class="form-control form-control-sm" id="formFileSm" accept=".xlsx" type="file" name="name_sap" required>
+            </div>
+            <div class="col-6">
+                <label for="formGroupExampleInput" class="form-label">Seleccione el archivo Limites</label>
+                <input class="form-control form-control-sm" id="formFileSm" accept=".xlsx" type="file" name="name_limit" required>
+            </div>
+            <div class="col-6">
+                <label for="formGroupExampleInput" class="form-label">Seleccione el archivo Cupos</label>
+                <input class="form-control form-control-sm" id="formFileSm" accept=".xlsx" type="file" name="name_cupos" required>
+            </div>
+            <div class="col-12">
+                <label for ="formGroupExampleInput" class="form-label">Ingresa nombre para el archivo de salida (Sin extension .xlsx)</label>
+                <div class="form-floating mb-3">
+                    <input type="text" class="form-control" id="floatingInput" name="namesal" required>
+                    <label for="floatingInput">Archivo de salida</label>
+                </div>
+            </div>
+        </div>
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">Continuar</button>
+        </div>
+    </div>    
+</form>
+{% endblock %}

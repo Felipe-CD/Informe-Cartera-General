@@ -1,0 +1,39 @@
+{% extends "indexf.html" %}
+
+{% block content %}
+<br>
+<content>
+<h3 class="text-center">FILTROS A APLICAR A LA BASE</h3>
+<div class="container">
+    <div class="row g-2">
+        <p >A continuación, se presentan los filtros que se aplican al <strong> archivo base de SAP </strong>, 
+            agrege los filtros que se aplicaran a la columna señalada separados por coma ","
+            sin espacios entre ellos. Luego oprima Ejecutar para ejecutar el programa.
+        </p>
+        <div class="col-6">
+            <h5>Columna</h5>
+        </div>
+        <div class="col-6">
+            <h5>Filtros</h5>
+        </div>
+    </div>
+</div>
+<form action="#" method="POST" enctype="multipart/form-data">
+    <div class="container">
+        <div class="input-group">
+            <input type="text" class="form-control" value="{{f['data']['name1']}} (en minúscula)" disabled>
+            <textarea class="form-control" name="lista1">{{f['data']['filt1']}}</textarea>
+        </div>
+        <div class="input-group">
+            <input type="text" class="form-control" value="{{f['data']['name2']}}" disabled>
+            <textarea class="form-control" name="lista2">{{f['data']['filt2']}}</textarea>
+        </div>
+        <br>
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <a href="/" class="btn btn-primary me-md-2" type="button">Volver</a>
+            <button type="submit" class="btn btn-primary" type="button">Ejecutar</button>
+        </div>
+    </div>
+</form>
+</content>
+{% endblock %}

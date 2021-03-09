@@ -1,0 +1,12 @@
+{% extends "indexf.html" %}
+
+{% block content %}
+<h3>El programa esta ejecutandose...</h3>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for msg in messages %}
+            <p>{{msg}}</p>
+        {% endfor %}
+        {% endif %}
+    {% endwith %}
+{% endblock %}

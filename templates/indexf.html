@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+
+        <title>Marcacion Partidas</title>
+    </head>
+    <body>
+        <header>
+            <div class="collapse bg-dark" id="navbarHeader">
+                <div class="container">
+                    <div class="row">
+                        <div class="col-sm-8 col-md-7 py-4">
+                            <h4 class="text-white">Objetivo</h4>
+                            <p class="text-muted">Este programa realiza el informe de Cartera general
+                            </p>
+                        </div>
+                        <div class="col-sm-4 offset-md-1 py-4">
+                            <h4 class="text-white">Soporte</h4>
+                            <ul class="list-unstyled">
+                                <p class="text-white">Andres Felipe Castillo Diaz</p>
+                                <li><a href="#" class="text-white">andres.castillod@claro.com.co</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="navbar navbar-dark bg-dark shadow-sm">
+                <div class="container">
+                    <a class="navbar-brand" href="#">
+                        <img src="http://drive.google.com/uc?export=view&id=1TLCqpvVsAtB4_sEjfKPR8zxeYog2KzXv" alt="" width="60" height="30" class="d-inline-block align-top">
+                    </a>
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarHeader" aria-controls="navbarHeader" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
+            </div>
+        </header>
+        {% block content %}
+        {% endblock %}
+        <script>
+
+            document.addEventListener('DOMContentLoaded', function() {
+            
+                var url = 'http://127.0.0.1:5001/GUI-is-still-open'; 
+                fetch(url, { mode: 'no-cors'});
+                setInterval(function(){ fetch(url, { mode: 'no-cors'});}, 5000)();
+            
+            });
+            
+        </script>
+        
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+    </body>
+</html>
