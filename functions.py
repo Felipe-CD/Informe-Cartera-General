@@ -127,6 +127,30 @@ def cartera_general(sap,sap2):
     Esta función genera las tablas y tabl;as dinamicas que se abren del archivo 
     cartera general y las actualiza
     """
+    def find_specific_row_cell(name,ws):
+    """
+    Función que retorna el numero de fila y columna de una celda qwe contiene el valor "name" en la hoja "ws"
+    """
+    for row in range(1, ws.max_row + 1):
+        for column in "ABCDEFGHIJKL":
+            cell_name = "{}{}".format(column, row)
+            if ws[cell_name].value == name:
+                return row, column
+
+    def limpiar_ajustar_rango(fila_inicio, fila_fin, columna_inicio, columna_fin, tamano_rango_viejo, tamano_rango_nuevo, ws):
+        """
+        Función que permite limpiar y ajustar un rango especificado de entrada segun el tamaño
+        que tenga la data "dataframe" a exportar
+        """
+        rango_a_limpiar = "{}{}:{}{}".format(columna_inicio,fila_inicio,columna_fin,fila_fin)
+        for row in ws[rango_a_limpiar]:
+            for cell in row:
+                cell.value = None
+        if tamano_rango_viejo < tamano_rango_nuevo:
+            ws.insert_rows(fila_inicio, (tamano_rango_nuevo - tamano_rango_viejo))
+        elif tamano_rango_viejo > tamano_rango_nuevo:
+            ws.delete_rows(fila_inicio, (tamano_rango_viejo - tamano_rango_nuevo))
+
     #Agrupo y dejo solo columnas de dias de cartera 10, 20, 30
     sap.insert(17, "Cartera a 10 Dias", sap[["Cartera A 005 Días","Cartera A 010 Días"]].sum(axis=1, min_count=1))
     sap.insert(20, "Cartera a 20 Dias", sap[["Cartera A 015 Días","Cartera A 020 Días"]].sum(axis=1, min_count=1))
@@ -137,5 +161,33 @@ def cartera_general(sap,sap2):
     else:
         check = "La suma desde 'Cartera total' hasta 'mayor a' NO da igual que 'Cartera Total'"
     
+    #CREACION DE TABLAS Y VARIABLES PARA MODIFICAR EL INFORME
+    #sap2 equivale a "Data_Conceptos_Excluyentes"
+    #par_exclu_inte equivale a la data en "Partidas Excluidas intereses"
+    par_exclu_inte = sap2.loc[
+                            (sap2["Descripción cabecera pedido"].str.contains("valor presente neto")) | 
+                            (sap2["Descripción cabecera pedido"].str.contains("vpn")),
+                            ("No. de Cliente","Descripción","No. Identificación Fiscal","Cartera No Vencido","Días Mora"," Cartera Vencida","     Cartera Total")
+    ]
+    par_exclu_inte["Descripción_2"] = "COMPENSACION INTERESES PRESTAMO DIS"
+    #suma_recargas equivale a la celda (Conceptos Recargas en Línea) de la hoja "Partidas Excluidas intereses"
+    suma_recargas = sap2.loc[
+                            (sap2["Descripción cabecera pedido"].str.contains("recarga en linea")) |
+                            (sap2["Descripción cabecera pedido"].str.contains("recarga $")) |
+                            (sap2["Descripción cabecera pedido"].str.contains("recarga  $")),
+                            ("     Cartera Total")
+    ].sum()
+    #R1, R2, R3, R4, R5 para colocar ne las respectivas hojas del libro de excel
+    regiones = sap["Region"].drop_duplicates().to_list()
+    regiones.sort()
+    R1 = sap[sap["Region"] == regiones[0]]
+    R2 = sap[sap["Region"] == regiones[1]]
+    R3 = sap[sap["Region"] == regiones[2]]
+    R4 = sap[sap["Region"] == regiones[3]]
+    R5 = sap[sap["Region"] == regiones[4]]
+    #Data para las paginas "detalle otro concepto abierto" y "detalle kits"
+    otro_concepto_abierto = sap[sap["Producto"] == 18]
+    detalle_kits = sap[sap["Producto"] == 10]
+
         
     return check

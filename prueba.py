@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from numpy import nan
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
@@ -130,6 +131,30 @@ cartera_120.to_excel(writer, sheet_name="Cartera 120 dias", startrow=2, startcol
 writer.save()
 
 """INFORME DE CARTERA GENERAL"""
+def find_specific_row_cell(name,ws):
+    """
+    Función que retorna el numero de fila y columna de una celda qwe contiene el valor "name" en la hoja "ws"
+    """
+    for row in range(1, ws.max_row + 1):
+        for column in "ABCDEFGHIJKL":
+            cell_name = "{}{}".format(column, row)
+            if ws[cell_name].value == name:
+                return row, column
+
+def limpiar_ajustar_rango(fila_inicio, fila_fin, columna_inicio, columna_fin, tamano_rango_viejo, tamano_rango_nuevo, ws):
+    """
+    Función que permite limpiar y ajustar un rango especificado de entrada segun el tamaño
+    que tenga la data "dataframe" a exportar
+    """
+    rango_a_limpiar = "{}{}:{}{}".format(columna_inicio,fila_inicio,columna_fin,fila_fin)
+    for row in ws[rango_a_limpiar]:
+        for cell in row:
+            cell.value = None
+    if tamano_rango_viejo < tamano_rango_nuevo:
+        ws.insert_rows(fila_inicio, (tamano_rango_nuevo - tamano_rango_viejo))
+    elif tamano_rango_viejo > tamano_rango_nuevo:
+        ws.delete_rows(fila_inicio, (tamano_rango_viejo - tamano_rango_nuevo))
+
 #Agrupo y dejo solo columnas de dias de cartera 10, 20, 30
 sap.insert(17, "Cartera a 10 Dias", sap[["Cartera A 005 Días","Cartera A 010 Días"]].sum(axis=1, min_count=1))
 sap.insert(20, "Cartera a 20 Dias", sap[["Cartera A 015 Días","Cartera A 020 Días"]].sum(axis=1, min_count=1))
@@ -140,70 +165,89 @@ if sap["     Cartera Total"].sum() == sap["Cartera No Vencido"].sum() + sap["Car
 else:
     print("La suma desde 'Cartera total' hasta 'mayor a' NO da igual que 'Cartera Total'")
 
-#Creacion de las tablas a imprimir en cada hoja
+#CREACION DE TABLAS Y VARIABLES PARA MODIFICAR EL INFORME
 #sap2 equivale a "Data_Conceptos_Excluyentes"
-#"Partidas Excluidas intereses"
+#par_exclu_inte equivale a la data en "Partidas Excluidas intereses"
 par_exclu_inte = sap2.loc[
                         (sap2["Descripción cabecera pedido"].str.contains("valor presente neto")) | 
                         (sap2["Descripción cabecera pedido"].str.contains("vpn")),
                         ("No. de Cliente","Descripción","No. Identificación Fiscal","Cartera No Vencido","Días Mora"," Cartera Vencida","     Cartera Total")
 ]
 par_exclu_inte["Descripción_2"] = "COMPENSACION INTERESES PRESTAMO DIS"
-
+#suma_recargas equivale a la celda (Conceptos Recargas en Línea) de la hoja "Partidas Excluidas intereses"
+suma_recargas = sap2.loc[
+                        (sap2["Descripción cabecera pedido"].str.contains("recarga en linea")) |
+                        (sap2["Descripción cabecera pedido"].str.contains("recarga $")) |
+                        (sap2["Descripción cabecera pedido"].str.contains("recarga  $")),
+                        ("     Cartera Total")
+].sum()
+#R1, R2, R3, R4, R5 para colocar ne las respectivas hojas del libro de excel
+regiones = sap["Region"].drop_duplicates().to_list()
+regiones.sort()
+R1 = sap[sap["Region"] == regiones[0]]
+R2 = sap[sap["Region"] == regiones[1]]
+R3 = sap[sap["Region"] == regiones[2]]
+R4 = sap[sap["Region"] == regiones[3]]
+R5 = sap[sap["Region"] == regiones[4]]
+#Data para las paginas "detalle otro concepto abierto" y "detalle kits"
+otro_concepto_abierto = sap[sap["Producto"] == 18]
+detalle_kits = sap[sap["Producto"] == 10]
+#Tablas dinamicas
+#Hoja Informe_Acuerdos
+informe_acuerdos = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull())].pivot_table(
+                    index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                    values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                    aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
+informe_acuerdos.columns = [j for i,j in informe_acuerdos.columns]
+informe_acuerdos = informe_acuerdos[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
 
 #MODIFICACION DEL INFORME
 #Abrir el archivo de cartera general
 book = load_workbook("xxx.xlsx")
-#Eliminar todos los datos de una hoja "Data_Conceptos_Excluyentes"
+#Eliminar todos los datos de una hoja
 ws = book["Data_Conceptos_Excluyentes"]
 ws.delete_rows(0, ws.max_row + 1)
 #Preparacion para escribir en una(s) hojas
 writer = pd.ExcelWriter('xxx.xlsx', engine='openpyxl')
 writer.book = book
 writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
+#Eliminacion de celdas y rangos para que la data se ajuste
+
 #Imprimir datframe en toda una hoja (Se puede especificar la fila y columna de inicio con startrow, startcol)
 sap2.to_excel(writer, "Data_Conceptos_Excluyentes", index=False)
 #guardar y cerrar el archivo
 writer.save()
 
 
-""" CODIGO PARA ELIMINAR FILAS DE UNA HOJA ESPECIFICADA
+#CODIGO PARA ELIMINAR FILAS DE UNA HOJA ESPECIFICADA -------------------NOTAAAAAAAAAAAAAAAS
 first=pd.DataFrame({'A':[1,1,1,1],
              'B':[2,2,2,2]})
 book = load_workbook("test.xlsx")
-ws = book["hoja de prueba"]
-ws.delete_rows(3, 1)
 writer = pd.ExcelWriter("test.xlsx", engine="openpyxl")
 writer.book = book
-writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
+writer.sheets = dict((wss.title, wss) for wss in book.worksheets)
+ws = book["hoja de prueba"]
+fila, columna = find_specific_row_cell("total",ws)
+limpiar_ajustar_rango(2,(fila-1),"A","G",(fila-2),4,ws)
 #Imprime el dataframe first en la columna d y la fila 8 del excel
-first.to_excel(writer, "hoja de prueba", startrow=7, startcol=3, index=False, header=False)
+first.to_excel(writer, "hoja de prueba", startrow=1, startcol=0, index=False, header=False)
 writer.save()
-"""
-def find_specific_row_cell(name,ws):
-    """
-    Función que retorna el numero de fila y columna de una celda qwe contiene el valor "name"
-    """
-    for row in range(1, ws.max_row + 1):
-        for column in "ABCDEFGHIJKL":
-            cell_name = "{}{}".format(column, row)
-            if ws[cell_name].value == name:
-                return row, column
+#---------------------------------------------------------------------------------------------
 
+
+#modificacion de la hoja partidas expluidas intereses, solo data de valor presente neto, falta colocar el valor de suma de recargas
 book = load_workbook("xxx.xlsx")
 ws = book["Partidas Excluidas intereses"]
 fila, columna = find_specific_row_cell("Total",ws)
-rango_viejo = fila - 7
-
+tamano_rango_viejo = fila - 7
 rango_a_limpiar = "C7:J{}".format(fila)
 for row in ws[rango_a_limpiar]:
     for cell in row:
         cell.value = None
-
-if rango_viejo < len(par_exclu_inte):
-    ws.insert_rows(7, (len(par_exclu_inte) - rango_viejo))
-elif rango_viejo > len(par_exclu_inte):
-    ws.delete_rows(7, (rango_viejo - len(par_exclu_inte)))
+if tamano_rango_viejo < len(par_exclu_inte):
+    ws.insert_rows(7, (len(par_exclu_inte) - tamano_rango_viejo))
+elif tamano_rango_viejo > len(par_exclu_inte):
+    ws.delete_rows(7, (tamano_rango_viejo - len(par_exclu_inte)))
 
 writer = pd.ExcelWriter('xxx.xlsx', engine='openpyxl')
 writer.book = book
