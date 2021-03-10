@@ -28,12 +28,12 @@ filtros = {
 filtros["data"]["filt1"] = list(filtros["data"]["filt1"].split(","))
 filtros["data"]["filt2"] = list(filtros["data"]["filt2"].split(","))
 sap2 = []
-for i in filtros["data"]["filt"]:
+for i in filtros["data"]["filt1"]:
     sap2.append(sap[sap["Descripción cabecera pedido"].str.contains(i)])
     sap.drop(sap[sap["Descripción cabecera pedido"].str.contains(i)].index, inplace=True)
 for i in filtros["data"]["filt2"]:
-        sap2.append(sap[(sap["No. Referencia"].notnull()) & (sap["No. Referencia"].str.contains(i))])
-        sap.drop(sap[(sap["No. Referencia"].notnull()) & (sap["No. Referencia"].str.contains(i))].index, inplace=True)
+    sap2.append(sap[(sap["No. Referencia"].notnull()) & (sap["No. Referencia"].str.contains(i))])
+    sap.drop(sap[(sap["No. Referencia"].notnull()) & (sap["No. Referencia"].str.contains(i))].index, inplace=True)
 sap.reset_index(drop=True, inplace=True)
 #Las partidas quitadas con los filtros se colocan en un dataframe diferente para dejarlas en una hoja aparte
 sap2 = pd.concat([sap2[i] for i in range(len(sap2))], axis=0)
@@ -140,14 +140,73 @@ if sap["     Cartera Total"].sum() == sap["Cartera No Vencido"].sum() + sap["Car
 else:
     print("La suma desde 'Cartera total' hasta 'mayor a' NO da igual que 'Cartera Total'")
 
+#Creacion de las tablas a imprimir en cada hoja
+#sap2 equivale a "Data_Conceptos_Excluyentes"
+#"Partidas Excluidas intereses"
+par_exclu_inte = sap2.loc[
+                        (sap2["Descripción cabecera pedido"].str.contains("valor presente neto")) | 
+                        (sap2["Descripción cabecera pedido"].str.contains("vpn")),
+                        ("No. de Cliente","Descripción","No. Identificación Fiscal","Cartera No Vencido","Días Mora"," Cartera Vencida","     Cartera Total")
+]
+par_exclu_inte["Descripción_2"] = "COMPENSACION INTERESES PRESTAMO DIS"
+
+
+#MODIFICACION DEL INFORME
 #Abrir el archivo de cartera general
 book = load_workbook("xxx.xlsx")
+#Eliminar todos los datos de una hoja "Data_Conceptos_Excluyentes"
+ws = book["Data_Conceptos_Excluyentes"]
+ws.delete_rows(0, ws.max_row + 1)
+#Preparacion para escribir en una(s) hojas
 writer = pd.ExcelWriter('xxx.xlsx', engine='openpyxl')
 writer.book = book
 writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
-
+#Imprimir datframe en toda una hoja (Se puede especificar la fila y columna de inicio con startrow, startcol)
 sap2.to_excel(writer, "Data_Conceptos_Excluyentes", index=False)
-writer.save() 
+#guardar y cerrar el archivo
+writer.save()
 
 
+""" CODIGO PARA ELIMINAR FILAS DE UNA HOJA ESPECIFICADA
+first=pd.DataFrame({'A':[1,1,1,1],
+             'B':[2,2,2,2]})
+book = load_workbook("test.xlsx")
+ws = book["hoja de prueba"]
+ws.delete_rows(3, 1)
+writer = pd.ExcelWriter("test.xlsx", engine="openpyxl")
+writer.book = book
+writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
+#Imprime el dataframe first en la columna d y la fila 8 del excel
+first.to_excel(writer, "hoja de prueba", startrow=7, startcol=3, index=False, header=False)
+writer.save()
+"""
+def find_specific_row_cell(name,ws):
+    """
+    Función que retorna el numero de fila y columna de una celda qwe contiene el valor "name"
+    """
+    for row in range(1, ws.max_row + 1):
+        for column in "ABCDEFGHIJKL":
+            cell_name = "{}{}".format(column, row)
+            if ws[cell_name].value == name:
+                return row, column
 
+book = load_workbook("xxx.xlsx")
+ws = book["Partidas Excluidas intereses"]
+fila, columna = find_specific_row_cell("Total",ws)
+rango_viejo = fila - 7
+
+rango_a_limpiar = "C7:J{}".format(fila)
+for row in ws[rango_a_limpiar]:
+    for cell in row:
+        cell.value = None
+
+if rango_viejo < len(par_exclu_inte):
+    ws.insert_rows(7, (len(par_exclu_inte) - rango_viejo))
+elif rango_viejo > len(par_exclu_inte):
+    ws.delete_rows(7, (rango_viejo - len(par_exclu_inte)))
+
+writer = pd.ExcelWriter('xxx.xlsx', engine='openpyxl')
+writer.book = book
+writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
+par_exclu_inte.to_excel(writer, "Partidas Excluidas intereses", index=False, header=False, startrow=6, startcol=2)
+writer.save()
