@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from numpy import nan
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
@@ -71,6 +70,11 @@ sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500
 sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), ("Días Mora")] = -1
 #Buscar region en el archivo limites para cada partida y anexarla despues de columna 2 "No. Identificación Fiscal"
 sap.insert(3, "Region", sap["No. Identificación Fiscal"].map(limites.drop_duplicates("Nit").set_index("Nit")["Nueva Region"]))
+l1 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull()), ("Descripción")].drop_duplicates().to_list()
+l2 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D"), ("Descripción")].drop_duplicates().to_list()
+l3 = [x for x in l1 if x not in l2] #Distribuidores que se cambio de ACUERDO A ABIERTO
+for i in l3:
+    sap.loc[sap["Descripción"] == i, ("Status")] = "ABIERTO"
 
 """CREACION DE TABLAS DINAMICAS"""
 #MEXICO
@@ -111,11 +115,12 @@ writer = pd.ExcelWriter("Informe_1.xlsx", engine="xlsxwriter")
 workbook = writer.book
 worksheet = workbook.add_worksheet("Base depurada")
 writer.sheets["Base depurada"] = worksheet
-worksheet.write_string(0, 0, f"Base depurada con los filtros especificados en el programa: {filtros['data']['filt']}")
+worksheet.write_string(0, 0, f"Base depurada con los filtros especificados en el programa: {filtros['data']['filt1']}")
+worksheet.write_string(1, 0, f"Los distribuidores a los cuales se les cambio el status de 'ACUERDO' a 'ABIERTO' son: {', '.join(str(x) for x in l3)}")
 sap.to_excel(writer, sheet_name="Base depurada", startrow=2 , startcol=1, index=False)
 worksheet = workbook.add_worksheet("Data extraida")
 writer.sheets["Data extraida"] = worksheet
-worksheet.write_string(0, 0, f"Data extraida con los filtros especificados en el programa: {filtros['data']['filt']}")
+worksheet.write_string(0, 0, "Data extraida")
 sap2.to_excel(writer, sheet_name="Data extraida", startrow=2 , startcol=1, index=False)
 worksheet = workbook.add_worksheet("Informe Mexico")
 writer.sheets["Informe Mexico"] = worksheet
@@ -200,8 +205,21 @@ informe_acuerdos = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnu
                     aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
 informe_acuerdos.columns = [j for i,j in informe_acuerdos.columns]
 informe_acuerdos = informe_acuerdos[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+informe_acuerdos2 = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D")].pivot_table(
+                    index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                    values=["     Cartera Total"], 
+                    aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
+informe_acuerdos.insert(8, "Vencida", informe_acuerdos.iloc[:, 1:8].sum(axis=1))
+informe_acuerdos["Acuerdo"] = informe_acuerdos2[("sum","     Cartera Total")]
 
-#MODIFICACION DEL INFORME
+#DEESDE ACA EMPECE A TRABAJAR SOLO EN EL ARCHIVO functions.py
+
+
+
+
+
+
+#MODIFICACION DEL INFORME -------------------------------------------------------------
 #Abrir el archivo de cartera general
 book = load_workbook("xxx.xlsx")
 #Eliminar todos los datos de una hoja

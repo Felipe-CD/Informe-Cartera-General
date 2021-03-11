@@ -113,11 +113,11 @@ def filtres():
 
 @app.route("/execute")
 def execute():
-    global sap, limites, cupos, sap2, filtros, check1, check2
-    sap, limites, cupos, sap2, check1 = clean_data(sap, limites, cupos, filtros)
+    global sap, limites, cupos, sap2, filtros, check1, check2, l3
+    sap, limites, cupos, sap2, check1, l3 = clean_data(sap, limites, cupos, filtros)
     flash(check1)
-    informe_mexico_120(sap, sap2)
-    check2 = cartera_general(sap, sap2)
+    informe_mexico_120(sap, sap2, l3)
+    check2 = cartera_general(sap, sap2, cupos)
     flash(check2)
     return render_template("execute.html")
 

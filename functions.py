@@ -56,12 +56,20 @@ def clean_data(sap, limites, cupos, filtros):
     sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), ("Días Mora")] = -1
     #Buscar region en el archivo limites para cada partida y anexarla despues de columna 2 "No. Identificación Fiscal"
     sap.insert(3, "Region", sap["No. Identificación Fiscal"].map(limites.drop_duplicates("Nit").set_index("Nit")["Nueva Region"]))
+    l1 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull()), ("Descripción")].drop_duplicates().to_list()
+    l2 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D"), ("Descripción")].drop_duplicates().to_list()
+    l3 = [x for x in l1 if x not in l2] #Distribuidores que se cambio de ACUERDO A ABIERTO
+    for i in l3:
+        sap.loc[sap["Descripción"] == i, ("Status")] = "ABIERTO"
 
-    return sap, limites, cupos, sap2, check
+    return sap, limites, cupos, sap2, check, l3
 
-def informe_mexico_120(sap, sap2):
+def informe_mexico_120(sap, sap2, l3):
     """
     Funcion para generar las diferentes tablas/estadisticas de los informes
+    sap: Base filtrada y lista para trabajar
+    sap2: Data extraida para que sap sea la base filtrada/depurada/limpia
+    l3: Nombre de los distribuidores a los cuales se le cambio "ACUERDO" por "ABIERTO" (Ya estan al día)
     """
     #CREACION DE TABLAS DINAMICAS
     #MEXICO
@@ -102,11 +110,12 @@ def informe_mexico_120(sap, sap2):
     workbook = writer.book
     worksheet = workbook.add_worksheet("Base depurada")
     writer.sheets["Base depurada"] = worksheet
-    worksheet.write_string(0, 0, f"Base depurada con los filtros especificados en el programa: {filtros['data']['filt']}")
-    sap.to_excel(writer, sheet_name="Base depurada", startrow=2 , startcol=1, index=False)
+    worksheet.write_string(0, 0, f"Base depurada con los filtros especificados en el programa: {filtros['data']['filt1']}")
+    worksheet.write_string(1, 0, f"Los distribuidores a los cuales se les cambio el status de 'ACUERDO' a 'ABIERTO' son: {', '.join(str(x) for x in l3)}")
+    sap.to_excel(writer, sheet_name="Base depurada", startrow=3 , startcol=1, index=False)
     worksheet = workbook.add_worksheet("Data extraida")
     writer.sheets["Data extraida"] = worksheet
-    worksheet.write_string(0, 0, f"DATA EXTRAIDA")
+    worksheet.write_string(0, 0, "DATA EXTRAIDA")
     sap2.to_excel(writer, sheet_name="Data extraida", startrow=2 , startcol=1, index=False)
     worksheet = workbook.add_worksheet("Informe Mexico")
     writer.sheets["Informe Mexico"] = worksheet
@@ -122,34 +131,29 @@ def informe_mexico_120(sap, sap2):
     writer.save()
     return
 
-def cartera_general(sap,sap2):
+def cartera_general(sap,sap2, cupos):
     """
     Esta función genera las tablas y tabl;as dinamicas que se abren del archivo 
     cartera general y las actualiza
     """
-    def find_specific_row_cell(name,ws):
-    """
-    Función que retorna el numero de fila y columna de una celda qwe contiene el valor "name" en la hoja "ws"
-    """
-    for row in range(1, ws.max_row + 1):
-        for column in "ABCDEFGHIJKL":
-            cell_name = "{}{}".format(column, row)
-            if ws[cell_name].value == name:
-                return row, column
+    def generate_pivot_table(data, filtro):
+        """
+        Función que retorna una tabla dinamica con un filtro en la columna Status y columnas desde Cartera no vencida hasta Mayor a, incluyendo suma desde a 10 hasta >120
 
-    def limpiar_ajustar_rango(fila_inicio, fila_fin, columna_inicio, columna_fin, tamano_rango_viejo, tamano_rango_nuevo, ws):
+
+        data: Dataframe como la base filtrada con filtros aplicados de Producto, region, etc
+
+        filtro: "ACUERDO" o "ABIERTO"
         """
-        Función que permite limpiar y ajustar un rango especificado de entrada segun el tamaño
-        que tenga la data "dataframe" a exportar
-        """
-        rango_a_limpiar = "{}{}:{}{}".format(columna_inicio,fila_inicio,columna_fin,fila_fin)
-        for row in ws[rango_a_limpiar]:
-            for cell in row:
-                cell.value = None
-        if tamano_rango_viejo < tamano_rango_nuevo:
-            ws.insert_rows(fila_inicio, (tamano_rango_nuevo - tamano_rango_viejo))
-        elif tamano_rango_viejo > tamano_rango_nuevo:
-            ws.delete_rows(fila_inicio, (tamano_rango_viejo - tamano_rango_nuevo))
+        df = data[(data["Status"] == filtro)].pivot_table(
+                        index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                        values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                        aggfunc=["sum"])
+        df.columns = [j for i,j in df.columns]
+        df = df[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+        df.insert(8, "Total Vencida", df.iloc[:, 1:8].sum(axis=1))
+        df.reset_index(inplace=True)
+        return df
 
     #Agrupo y dejo solo columnas de dias de cartera 10, 20, 30
     sap.insert(17, "Cartera a 10 Dias", sap[["Cartera A 005 Días","Cartera A 010 Días"]].sum(axis=1, min_count=1))
@@ -188,6 +192,59 @@ def cartera_general(sap,sap2):
     #Data para las paginas "detalle otro concepto abierto" y "detalle kits"
     otro_concepto_abierto = sap[sap["Producto"] == 18]
     detalle_kits = sap[sap["Producto"] == 10]
+    #TABLAS DINAMICAS
+    #Hoja Informe_Acuerdos
+    informe_acuerdos = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull())].pivot_table(
+                        index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                        values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                        aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
+    informe_acuerdos.columns = [j for i,j in informe_acuerdos.columns]
+    informe_acuerdos = informe_acuerdos[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+    info_temporal = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D")].pivot_table(
+                        index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                        values=["     Cartera Total"], 
+                        aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
+    informe_acuerdos.insert(8, "Total Vencida", informe_acuerdos.iloc[:, 1:8].sum(axis=1))
+    informe_acuerdos["Acuerdo"] = info_temporal[("sum","     Cartera Total")]
+    informe_acuerdos.reset_index(inplace=True)
+    #HOJA "Kit abiertos"
+    #primera tabla "abierto"
+    kit_abiertos = detalle_kits[(detalle_kits["Status"] == "ABIERTO")].pivot_table(
+                        index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                        values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                        aggfunc=["sum"])
+    kit_abiertos.columns = [j for i,j in kit_abiertos.columns]
+    kit_abiertos = kit_abiertos[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+    kit_abiertos.insert(8, "Total Vencida", kit_abiertos.iloc[:, 1:8].sum(axis=1))
+    kit_abiertos.reset_index(inplace=True) #Pasar los multiindex a columnas con su respectivo nombre
+    kit_abiertos.insert(3, "Limite de credito", kit_abiertos["No. de Cliente"].map(cupos.drop_duplicates("Cliente").set_index("Cliente")["Límite crédito"]))
+    kit_abiertos.insert(4, "Extra cupo", 0)
+    kit_abiertos.to_excel("testaa.xlsx", index=False)
+    #segunda tabla "acuerdo"
+    kit_acuerdo = detalle_kits[(detalle_kits["Status"] == "ACUERDO")].pivot_table(
+                        index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                        values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                        aggfunc=["sum"])
+    kit_acuerdo.columns = [j for i,j in kit_acuerdo.columns]
+    kit_acuerdo = kit_acuerdo[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+    kit_acuerdo.insert(8, "Total Vencida", kit_acuerdo.iloc[:, 1:8].sum(axis=1))
+    kit_acuerdo.reset_index(inplace=True) #Pasar los multiindex a columnas con su respectivo nombre
+    kit_acuerdo.insert(3, "Limite de credito", kit_acuerdo["No. de Cliente"].map(cupos.drop_duplicates("Cliente").set_index("Cliente")["Límite crédito"]))
+    kit_acuerdo.insert(4, "Extra cupo", 0)
+    #HOJA "Otros conceptos abiertos"
+    otros_conceptos_abiertos = generate_pivot_table(otro_concepto_abierto, "ABIERTO")
+    otros_conceptos_acuerdos = generate_pivot_table(otro_concepto_abierto, "ACUERDO")
+    #HOJA "Agentes R4 Centro-Oriente"
+    r4_abiertos = generate_pivot_table(R4, "ABIERTO")
+    r4_acuerdo = generate_pivot_table(R4, "ACUERDO")
+    #HOJA "Agentes R3"
+    r3_abiertos = generate_pivot_table(R3, "ABIERTO")
+    r3_acuerdo = generate_pivot_table(R3, "ACUERDO")
+    #HOJA "Agentes R2"
+    r2_abiertos = generate_pivot_table(R2, "ABIERTO")
+    r2_acuerdo = generate_pivot_table(R2, "ACUERDO")
+    #HOJA "Agentes R1"
+    r1_abiertos = generate_pivot_table(R1, "ABIERTO")
+    r1_acuerdo = generate_pivot_table(R1, "ACUERDO")
 
-        
     return check
