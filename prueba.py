@@ -6,6 +6,8 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 sap = pd.read_excel("cartera 15 02 2021 virgen 1.XLS.xlsx",
                     skiprows=[0,1,2,3,4,5,6,7,9], usecols="B:AV")
 cupos = pd.read_excel("cupos prepago.xlsx", skiprows=[0,1,2,4], usecols=[1,3,4,5,6,7,8,9])
+cerrados_sap = pd.read_excel("cerrados-sap.xlsx", skiprows=[0,1,2,3,4,5,6,7,9], usecols="B:AV")
+cerrados = pd.read_excel("Copia de LIMITES  22012021.xlsx", sheet_name="cerrados")
 limites = pd.ExcelFile("Copia de LIMITES  22012021.xlsx")
 print(limites.sheet_names)
 limites = pd.read_excel("Copia de LIMITES  22012021.xlsx", sheet_name="LIMITES")
@@ -111,7 +113,7 @@ cartera_120 = sap.pivot_table(index="Descripción", values=["         Mayor a"],
 cartera_120 = cartera_120[cartera_120[('sum', '         Mayor a', 'All')] > 0]
 
 #Exportar sap, sap2, mexico y 120 dias a un archivo de excel en hojas diferentes
-writer = pd.ExcelWriter("Informe_1.xlsx", engine="xlsxwriter")
+writer = pd.ExcelWriter("Informe_1_Program.xlsx", engine="xlsxwriter")
 workbook = writer.book
 worksheet = workbook.add_worksheet("Base depurada")
 writer.sheets["Base depurada"] = worksheet
@@ -160,6 +162,25 @@ def limpiar_ajustar_rango(fila_inicio, fila_fin, columna_inicio, columna_fin, ta
     elif tamano_rango_viejo > tamano_rango_nuevo:
         ws.delete_rows(fila_inicio, (tamano_rango_viejo - tamano_rango_nuevo))
 
+def generate_pivot_table(data, filtro):
+        """
+        Función que retorna una tabla dinamica con un filtro en la columna Status y columnas desde Cartera no vencida hasta Mayor a, incluyendo suma desde a 10 hasta >120
+
+
+        data: Dataframe como la base filtrada con filtros aplicados de Producto, region, etc
+
+        filtro: "ACUERDO" o "ABIERTO"
+        """
+        df = data[(data["Status"] == filtro)].pivot_table(
+                        index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                        values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                        aggfunc=["sum"])
+        df.columns = [j for i,j in df.columns]
+        df = df[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+        df.insert(8, "Total Vencida", df.iloc[:, 1:8].sum(axis=1))
+        df.reset_index(inplace=True)
+        return df
+
 #Agrupo y dejo solo columnas de dias de cartera 10, 20, 30
 sap.insert(17, "Cartera a 10 Dias", sap[["Cartera A 005 Días","Cartera A 010 Días"]].sum(axis=1, min_count=1))
 sap.insert(20, "Cartera a 20 Dias", sap[["Cartera A 015 Días","Cartera A 020 Días"]].sum(axis=1, min_count=1))
@@ -202,20 +223,88 @@ detalle_kits = sap[sap["Producto"] == 10]
 informe_acuerdos = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull())].pivot_table(
                     index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
                     values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
-                    aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
+                    aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues con index
 informe_acuerdos.columns = [j for i,j in informe_acuerdos.columns]
 informe_acuerdos = informe_acuerdos[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
 informe_acuerdos2 = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D")].pivot_table(
                     index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
                     values=["     Cartera Total"], 
-                    aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
+                    aggfunc=["sum"]) 
 informe_acuerdos.insert(8, "Vencida", informe_acuerdos.iloc[:, 1:8].sum(axis=1))
 informe_acuerdos["Acuerdo"] = informe_acuerdos2[("sum","     Cartera Total")]
-
+informe_acuerdos.to_excel("testaa.xlsx")
+""" ---------------------------------------------------------------------------------------------------------------"""
 #DEESDE ACA EMPECE A TRABAJAR SOLO EN EL ARCHIVO functions.py
+""" ---------------------------------------------------------------------------------------------------------------"""
+#HOJA "Kit abiertos"
+#primera tabla "abierto"
+kit_abiertos = detalle_kits[(detalle_kits["Status"] == "ABIERTO")].pivot_table(
+                    index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                    values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                    aggfunc=["sum"])
+kit_abiertos.columns = [j for i,j in kit_abiertos.columns]
+kit_abiertos = kit_abiertos[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+kit_abiertos.insert(8, "Total Vencida", kit_abiertos.iloc[:, 1:8].sum(axis=1))
+kit_abiertos.reset_index(inplace=True) #Pasar los multiindex a columnas con su respectivo nombre
+kit_abiertos.insert(3, "Limite de credito", kit_abiertos["No. de Cliente"].map(cupos.drop_duplicates("Cliente").set_index("Cliente")["Límite crédito"]))
+kit_abiertos.insert(4, "Extra cupo", 0)
+#segunda tabla "acuerdo"
+kit_acuerdo = detalle_kits[(detalle_kits["Status"] == "ACUERDO")].pivot_table(
+                    index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
+                    values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
+                    aggfunc=["sum"])
+kit_acuerdo.columns = [j for i,j in kit_acuerdo.columns]
+kit_acuerdo = kit_acuerdo[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
+kit_acuerdo.insert(8, "Total Vencida", kit_acuerdo.iloc[:, 1:8].sum(axis=1))
+kit_acuerdo.reset_index(inplace=True) #Pasar los multiindex a columnas con su respectivo nombre
+kit_acuerdo.insert(3, "Limite de credito", kit_acuerdo["No. de Cliente"].map(cupos.drop_duplicates("Cliente").set_index("Cliente")["Límite crédito"]))
+kit_acuerdo.insert(4, "Extra cupo", 0)
+#HOJA "Otros conceptos abiertos"
+otros_conceptos_abiertos = generate_pivot_table(otro_concepto_abierto, "ABIERTO")
+otros_conceptos_acuerdos = generate_pivot_table(otro_concepto_abierto, "ACUERDO")
+#HOJA "Agentes R4 Centro-Oriente"
+r4_abiertos = generate_pivot_table(R4, "ABIERTO")
+r4_acuerdo = generate_pivot_table(R4, "ACUERDO")
+#HOJA "Agentes R3"
+r3_abiertos = generate_pivot_table(R3, "ABIERTO")
+r3_acuerdo = generate_pivot_table(R3, "ACUERDO")
+#HOJA "Agentes R2"
+r2_abiertos = generate_pivot_table(R2, "ABIERTO")
+r2_acuerdo = generate_pivot_table(R2, "ACUERDO")
+#HOJA "Agentes R1"
+r1_abiertos = generate_pivot_table(R1, "ABIERTO")
+r1_acuerdo = generate_pivot_table(R1, "ACUERDO")
 
+#CERRADOS
+#Data cerrados
+cerrados_sap["Zona"] = cerrados_sap["No. Identificación Fiscal"].map(cerrados.drop_duplicates("NIT").set_index("NIT")["zona"])
+#Agentes cerrados (imprimir uno bajo el otro)
+cerrados_table_co03 = cerrados_sap[cerrados_sap["Zona"] == "CO03"].pivot_table(
+                        index=["No. de Cliente","Descripción"],
+                        values=["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"],
+                        aggfunc=["sum"])
+cerrados_table_co03.columns = [j for i,j in cerrados_table_co03.columns]
+cerrados_table_co03 = cerrados_table_co03[["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"]]
+cerrados_table_co03.insert(8, "Total Vencida", cerrados_table_co03.iloc[:, 1:8].sum(axis=1))
+cerrados_table_co03.reset_index(inplace=True)
 
+cerrados_table_co04 = cerrados_sap[cerrados_sap["Zona"] == "CO04"].pivot_table(
+                        index=["No. de Cliente","Descripción"],
+                        values=["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"],
+                        aggfunc=["sum"])
+cerrados_table_co04.columns = [j for i,j in cerrados_table_co04.columns]
+cerrados_table_co04 = cerrados_table_co04[["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"]]
+cerrados_table_co04.insert(8, "Total Vencida", cerrados_table_co04.iloc[:, 1:8].sum(axis=1))
+cerrados_table_co04.reset_index(inplace=True)
 
+cerrados_table_co05 = cerrados_sap[cerrados_sap["Zona"] == "CO05"].pivot_table(
+                        index=["No. de Cliente","Descripción"],
+                        values=["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"],
+                        aggfunc=["sum"])
+cerrados_table_co05.columns = [j for i,j in cerrados_table_co05.columns]
+cerrados_table_co05 = cerrados_table_co05[["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"]]
+cerrados_table_co05.insert(8, "Total Vencida", cerrados_table_co05.iloc[:, 1:8].sum(axis=1))
+cerrados_table_co05.reset_index(inplace=True)
 
 
 

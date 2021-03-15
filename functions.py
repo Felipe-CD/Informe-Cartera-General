@@ -131,7 +131,7 @@ def informe_mexico_120(sap, sap2, l3):
     writer.save()
     return
 
-def cartera_general(sap,sap2, cupos):
+def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     """
     Esta función genera las tablas y tabl;as dinamicas que se abren del archivo 
     cartera general y las actualiza
@@ -219,7 +219,6 @@ def cartera_general(sap,sap2, cupos):
     kit_abiertos.reset_index(inplace=True) #Pasar los multiindex a columnas con su respectivo nombre
     kit_abiertos.insert(3, "Limite de credito", kit_abiertos["No. de Cliente"].map(cupos.drop_duplicates("Cliente").set_index("Cliente")["Límite crédito"]))
     kit_abiertos.insert(4, "Extra cupo", 0)
-    kit_abiertos.to_excel("testaa.xlsx", index=False)
     #segunda tabla "acuerdo"
     kit_acuerdo = detalle_kits[(detalle_kits["Status"] == "ACUERDO")].pivot_table(
                         index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
@@ -247,4 +246,145 @@ def cartera_general(sap,sap2, cupos):
     r1_abiertos = generate_pivot_table(R1, "ABIERTO")
     r1_acuerdo = generate_pivot_table(R1, "ACUERDO")
 
+    #CERRADOS
+    #Data cerrados
+    cerrados_sap["Zona"] = cerrados_sap["No. Identificación Fiscal"].map(cerrados.drop_duplicates("NIT").set_index("NIT")["zona"])
+    #Agentes cerrados (imprimir uno bajo el otro)
+    cerrados_table_co03 = cerrados_sap[cerrados_sap["Zona"] == "CO03"].pivot_table(
+                            index=["No. de Cliente","Descripción"],
+                            values=["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"],
+                            aggfunc=["sum"])
+    cerrados_table_co03.columns = [j for i,j in cerrados_table_co03.columns]
+    cerrados_table_co03 = cerrados_table_co03[["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"]]
+    cerrados_table_co03.insert(8, "Total Vencida", cerrados_table_co03.iloc[:, 1:8].sum(axis=1))
+    cerrados_table_co03.reset_index(inplace=True)
+
+    cerrados_table_co04 = cerrados_sap[cerrados_sap["Zona"] == "CO04"].pivot_table(
+                            index=["No. de Cliente","Descripción"],
+                            values=["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"],
+                            aggfunc=["sum"])
+    cerrados_table_co04.columns = [j for i,j in cerrados_table_co04.columns]
+    cerrados_table_co04 = cerrados_table_co04[["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"]]
+    cerrados_table_co04.insert(8, "Total Vencida", cerrados_table_co04.iloc[:, 1:8].sum(axis=1))
+    cerrados_table_co04.reset_index(inplace=True)
+
+    cerrados_table_co05 = cerrados_sap[cerrados_sap["Zona"] == "CO05"].pivot_table(
+                            index=["No. de Cliente","Descripción"],
+                            values=["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"],
+                            aggfunc=["sum"])
+    cerrados_table_co05.columns = [j for i,j in cerrados_table_co05.columns]
+    cerrados_table_co05 = cerrados_table_co05[["Cartera No Vencido","Cartera A 010 Días","Cartera A 020 Días","Cartera A 030 Días","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","          Mayor a","    Cartera Total"]]
+    cerrados_table_co05.insert(8, "Total Vencida", cerrados_table_co05.iloc[:, 1:8].sum(axis=1))
+    cerrados_table_co05.reset_index(inplace=True)
+
+    #GENERACION DE INFORME EN UN ARCHIVO DE EXCEL -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    writer = pd.ExcelWriter("Informe_Cartera_General_Program.xlsx", engine="xlsxwriter")
+    workbook = writer.book
+    #"Data_Conceptos_Excluyentes"
+    worksheet = workbook.add_worksheet("Data_Conceptos_Excluyentes")
+    writer.sheets["Data_Conceptos_Excluyentes"] = worksheet
+    sap2.to_excel(writer, sheet_name="Data_Conceptos_Excluyentes", index=False)
+    #Partidas Excluidas intereses
+    worksheet = workbook.add_worksheet("Partidas Excluidas intereses")
+    writer.sheets["Partidas Excluidas intereses"] = worksheet
+    worksheet.write_string(1,2, "Compensaciones prestamos")
+    par_exclu_inte.to_excel(writer, "Partidas Excluidas intereses", index=0, startrow=4, startcol=2)
+    worksheet.write_string(par_exclu_inte.shape[0] + 6, 2, "Conceptos  Recargas en Línea")
+    worksheet.write_number(par_exclu_inte.shape[0] + 6, 3, suma_recargas)
+    #DATA R1
+    worksheet = workbook.add_worksheet("DATA R1")
+    writer.sheets["DATA R1"] = worksheet
+    R1.to_excel(writer, sheet_name="DATA R1", index=False)
+    #DATA R2
+    worksheet = workbook.add_worksheet("DATA R2")
+    writer.sheets["DATA R2"] = worksheet
+    R2.to_excel(writer, sheet_name="DATA R2", index=False)
+    #DATA R3
+    worksheet = workbook.add_worksheet("DATA R3")
+    writer.sheets["DATA R3"] = worksheet
+    R3.to_excel(writer, sheet_name="DATA R3", index=False)
+    #DATA R4
+    worksheet = workbook.add_worksheet("DATA R4")
+    writer.sheets["DATA R4"] = worksheet
+    R4.to_excel(writer, sheet_name="DATA R4", index=False)
+    #DATA R5
+    worksheet = workbook.add_worksheet("DATA R5")
+    writer.sheets["DATA R5"] = worksheet
+    R5.to_excel(writer, sheet_name="DATA R5", index=False)
+    #Detalle otro conpectos abiertos
+    worksheet = workbook.add_worksheet("Detalle otros conceptos abierto")
+    writer.sheets["Detalle otros conceptos abierto"] = worksheet
+    otro_concepto_abierto.to_excel(writer, sheet_name="Detalle otros conceptos abierto", index=False)
+    #Detalle kits
+    worksheet = workbook.add_worksheet("Detalle kits")
+    writer.sheets["Detalle kits"] = worksheet
+    detalle_kits.to_excel(writer, sheet_name="Detalle kits", index=False)
+    #Informe_Acuerdos
+    worksheet = workbook.add_worksheet("Informe_Acuerdos")
+    writer.sheets["Informe_Acuerdos"] = worksheet
+    worksheet.write_string(0, 1, "INFORME CARTERA DE DISTRIBUIDORES EN ACUERDO DE PAGO CON CORTE")
+    informe_acuerdos.to_excel(writer, sheet_name="Informe_Acuerdos", startcol=2, startrow=4)
+    #Kit abiertos
+    worksheet = workbook.add_worksheet("Kits abiertos")
+    writer.sheets["Kits abiertos"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES KIT A CORTE")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
+    kit_abiertos.to_excel(writer, sheet_name="Kits abiertos", index=False, startrow=5, startcol=0)
+    worksheet.write_string(kit_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
+    kit_acuerdo.to_excel(writer, sheet_name="Kits abiertos", index=False, startrow=kit_abiertos.shape[0] + 8, startcol=0)
+    #Otros conceptos abiertos
+    worksheet = workbook.add_worksheet("Otros conceptos abiertos")
+    writer.sheets["Otros conceptos abiertos"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA  OTROS CONCEPTOS DISTRIBUIDORES ABIERTOS  CON CORTE ")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
+    otros_conceptos_abiertos.to_excel(writer, sheet_name="Otros conceptos abiertos", index=False, startrow=5, startcol=0)
+    worksheet.write_string(otros_conceptos_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
+    otros_conceptos_acuerdos.to_excel(writer, sheet_name="Otros conceptos abiertos", index=False, startrow=otros_conceptos_abiertos.shape[0] + 8, startcol=0)
+    #Agentes R4 Centro-Oriente
+    worksheet = workbook.add_worksheet("Agentes R4 Centro-Oriente")
+    writer.sheets["Agentes R4 Centro-Oriente"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES  ZONA ORIENTE CON CORTE ")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
+    r4_abiertos.to_excel(writer, sheet_name="Agentes R4 Centro-Oriente", index=False, startrow=5, startcol=0)
+    worksheet.write_string(r4_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
+    r4_acuerdo.to_excel(writer, sheet_name="Agentes R4 Centro-Oriente", index=False, startrow=r4_abiertos.shape[0] + 8, startcol=0)
+    #Agentes R3 SurOccidente
+    worksheet = workbook.add_worksheet("Agentes R3 SurOccidente")
+    writer.sheets["Agentes R3 SurOccidente"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES ZONA OCCIDENTE CON CORTE ")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
+    r3_abiertos.to_excel(writer, sheet_name="Agentes R3 SurOccidente", index=False, startrow=5, startcol=0)
+    worksheet.write_string(r3_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
+    r3_acuerdo.to_excel(writer, sheet_name="Agentes R3 SurOccidente", index=False, startrow=r3_abiertos.shape[0] + 8, startcol=0)
+    #Agentes R2 NorOccidente
+    worksheet = workbook.add_worksheet("Agentes R2 NorOccidente")
+    writer.sheets["Agentes R2 NorOccidente"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES ZONA R2 CON CORTE ")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
+    r2_abiertos.to_excel(writer, sheet_name="Agentes R2 NorOccidente", index=False, startrow=5, startcol=0)
+    worksheet.write_string(r2_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
+    r2_acuerdo.to_excel(writer, sheet_name="Agentes R2 NorOccidente", index=False, startrow=r2_abiertos.shape[0] + 8, startcol=0)
+    #Agentes R1 Costa
+    worksheet = workbook.add_worksheet("Agentes R1 Costa")
+    writer.sheets["Agentes R1 Costa"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES ZONA COSTA CON CORTE ")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
+    r1_abiertos.to_excel(writer, sheet_name="Agentes R1 Costa", index=False, startrow=5, startcol=0)
+    worksheet.write_string(r1_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
+    r1_acuerdo.to_excel(writer, sheet_name="Agentes R1 Costa", index=False, startrow=r1_abiertos.shape[0] + 8, startcol=0)
+    #Data cerrados
+    worksheet = workbook.add_worksheet("Data cerrados")
+    writer.sheets["Data cerrados"] = worksheet
+    cerrados_sap.to_excel(writer, sheet_name="Data cerrados", index=False)
+    #Agentes cerrados
+    worksheet = workbook.add_worksheet("Agentes cerrados")
+    writer.sheets["Agentes cerrados"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES CERRADOS A CORTE ")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES CERRADOS ORIENTE")
+    cerrados_table_co03.to_excel(writer, sheet_name="Agentes cerrados", index=False, startrow=5, startcol=0)
+    worksheet.write_string(cerrados_table_co03.shape[0] + 7, 2, "DISTRIBUIDORES CERRADOS OCCIDENTE")
+    cerrados_table_co04.to_excel(writer, sheet_name="Agentes cerrados", index=False, startrow=cerrados_table_co03.shape[0] + 8, startcol=0)
+    worksheet.write_string(cerrados_table_co03.shape[0] + 8 + cerrados_table_co04.shape[0] + 7, 2, "DISTRIBUIDORES CERRADOS COSTA")
+    cerrados_table_co05.to_excel(writer, sheet_name="Agentes cerrados", index=False, startrow=cerrados_table_co03.shape[0] + 8 + cerrados_table_co04.shape[0] + 8, startcol=0)
+    writer.save()
     return check

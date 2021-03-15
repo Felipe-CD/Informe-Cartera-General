@@ -4,7 +4,7 @@ from functions import clean_data, informe_mexico_120, cartera_general
 import pandas as pd
 from numpy import nan
 
-def read_files(name_sap, name_limites, name_cupos):
+def read_files(name_sap, name_limites, name_cupos, name_cerrados_sap):
     """
     Esta función lee los archivos seleccionados por el usuario
     en la interfaz grafica y verifica si existe un error en ellos
@@ -19,25 +19,43 @@ def read_files(name_sap, name_limites, name_cupos):
         'Descripción.1', 'Descripción cabecera pedido', 'Organización de Ventas', 'Descripción.2', 
         'Canal de Distribución', 'Descripción.3', 'Clase Pedido', 'Descr.Clase', 'No.Pedido', 'Inactivo', 
         'Cuenta', 'Gr.Cliente', 'Gr.Cliente.1']
+    cerrados_sap_headers = ['No. de Cliente', 'Descripción', 'No. Identificación Fiscal', 'Clase Doc.', 'Ind. Cta Esp.',
+        'No. Referencia', 'No. Factura', 'No. Doc. Contable', 'Fecha Contabilización', 'Fecha Documento', 
+        'Entrada Documento', 'Fecha Base', 'Fecha Vencimiento', 'Cartera No Vencido', 'Cartera A 010 Días',
+        'Cartera A 020 Días', 'Cartera A 030 Días', 'Cartera A 060 Días', 'Cartera A 090 Días', 'Cartera A 120 Días', 
+        '          Mayor a', 'Días Mora', '  Cartera Vencida', '    Cartera Total', 'Producto', 'Tipo_Producto', '%Participación', 'Zona de Ventas', 
+        'Descripción.1', 'Descripción cabecera pedido', 'Organización de Ventas', 'Descripción.2', 
+        'Canal de Distribución', 'Descripción.3', 'Clase Pedido', 'Descr.Clase', 'No.Pedido', 'Inactivo', 
+        'Cuenta', 'Gr.Cliente', 'Gr.Cliente.1']
     limites_headers = ['Código', 'Nit', 'DISTRIBUIDORES', 'Código.1', 'BLOQUEOS', 'ACUERDO', 'fecha Acuer', 'ZONA', 
         'poliza', 'ZONA.1', 'antigua region', 'Nueva Region', 'ANALISTA COMISIONES', 'JEFE CANAL', 'JEFE TERRITORIO', 
         'GERENTE CANAL', 'lider', 'CATEGORIA', 'para validar']
     cupos_headers = ['Cliente', 'ACC', 'Cta.créd.', 'Cl.riesgo', 'Mon.', 'Límite crédito', ' Comprom.total', 'Agotamiento']
+    cerrados_headers = ['AÑO', 'NIT', 'EX DISTRIBUIDOR', 'FEC CIERRE', 'ESTADO', 'CONSULTOR', 'FEC EST CUENTA', 'ACREEDOR',
+        'DEUDOR', 'zona']
     #Lectura
     flag = False
     sap = pd.read_excel(name_sap, skiprows=[0,1,2,3,4,5,6,7,9], usecols="B:AV")
-    cupos = pd.read_excel("cupos prepago.xlsx", skiprows=[0,1,2,4], usecols=[1,3,4,5,6,7,8,9])
+    cupos = pd.read_excel(name_cupos, skiprows=[0,1,2,4], usecols=[1,3,4,5,6,7,8,9])
+    cerrados_sap = pd.read_excel(name_cerrados_sap, skiprows=[0,1,2,3,4,5,6,7,9], usecols="B:AV")
     limites = pd.ExcelFile(name_limites)
     if "LIMITES" not in limites.sheet_names:
         flag = True
         flash(f"No existe la hoja (LIMITES) en el archivo {name_limites}")
+    elif "cerrados" not in limites.sheet_names:
+        flag = True
+        flash(f"No existe la hoja (cerrados) en el archivo {name_limites}")
     else:
         limites = pd.read_excel(name_limites, sheet_name="LIMITES")
+        cerrados = pd.read_excel(name_limites, sheet_name="cerrados")
     #Verificación de errores
     for i in sap_headers:
         if i not in sap.columns.to_list():
             flag = True
             flash(f"No existe la columna ({i}) en el archivo SAP")
+        if i not in cerrados_sap.columns.to_list():
+            flag = True
+            flash(f"No existe la columna ({i}) en el archivo SAP CERRADOS")
     for i in limites_headers:
         if i not in limites.columns.to_list():
             flag = True
@@ -47,7 +65,7 @@ def read_files(name_sap, name_limites, name_cupos):
             flag = True
             flash(f"No existe la columna ({i}) en el archivo Cupos")
 
-    return sap, limites, cupos, flag
+    return sap, limites, cupos, cerrados, cerrados_sap, flag
 
 
 app = Flask(__name__)
@@ -65,13 +83,14 @@ def home():
     Esta pagina es la de inicio, en donde se seleccionan los
     archivos a trabajar
     """
-    global sap, limites, cupos, sap2
+    global sap, limites, cupos, cerrados, cerrados_sap, sap2
     if request.method == "POST":
         name_sap = request.files["name_sap"]
         name_limites = request.files["name_limit"]
         name_cupos = request.files["name_cupos"]
+        name_cerrados_sap = request.files["name_cerrados_sap"]
         salida = request.form["namesal"] + "xlsx"
-        sap, limites, cupos, flag = read_files(name_sap, name_limites, name_cupos) #Lectura de los archivos
+        sap, limites, cupos, cerrados, cerrados_sap, flag = read_files(name_sap, name_limites, name_cupos, name_cerrados_sap) #Lectura de los archivos
         if flag == True:
             return redirect(url_for("error"))
         else:
@@ -113,11 +132,11 @@ def filtres():
 
 @app.route("/execute")
 def execute():
-    global sap, limites, cupos, sap2, filtros, check1, check2, l3
+    global sap, limites, cupos, sap2, filtros, check1, check2, l3, cerrados, cerrados_sap
     sap, limites, cupos, sap2, check1, l3 = clean_data(sap, limites, cupos, filtros)
     flash(check1)
     informe_mexico_120(sap, sap2, l3)
-    check2 = cartera_general(sap, sap2, cupos)
+    check2 = cartera_general(sap, sap2, cupos, cerrados, cerrados_sap)
     flash(check2)
     return render_template("execute.html")
 
