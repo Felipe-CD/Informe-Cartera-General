@@ -49,7 +49,7 @@ def clean_data(sap, limites, cupos, filtros):
     if test_latcom != 525659031:
         check = 'La suma de "   Mayor a" con el filtro (Días mora > 1500 y LATCOM) no es igual a $525.659.031'
     else:
-        check = 'Filtro de "   MAyor a" verificado exitosamente'
+        check = 'Filtro de "   Mayor a" verificado exitosamente ($525.659.031)'
     sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), ("Cartera No Vencido")] = sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), ("     Cartera Total")]
     sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), ("         Mayor a")] = 0
     sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), (" Cartera Vencida")] = 0
@@ -58,13 +58,13 @@ def clean_data(sap, limites, cupos, filtros):
     sap.insert(3, "Region", sap["No. Identificación Fiscal"].map(limites.drop_duplicates("Nit").set_index("Nit")["Nueva Region"]))
     l1 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull()), ("Descripción")].drop_duplicates().to_list()
     l2 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D"), ("Descripción")].drop_duplicates().to_list()
-    l3 = [x for x in l1 if x not in l2] #Distribuidores que se cambio de ACUERDO A ABIERTO
+    l3 = [x for x in l1 if x not in l2] #Distribuidores que se cambio de ACUERDO A ABIERTO (los l1 que no estan en l2)
     for i in l3:
         sap.loc[sap["Descripción"] == i, ("Status")] = "ABIERTO"
 
     return sap, limites, cupos, sap2, check, l3
 
-def informe_mexico_120(sap, sap2, l3):
+def informe_mexico_120(sap, sap2, l3, filtros):
     """
     Funcion para generar las diferentes tablas/estadisticas de los informes
     sap: Base filtrada y lista para trabajar
@@ -106,7 +106,7 @@ def informe_mexico_120(sap, sap2, l3):
     cartera_120 = cartera_120[cartera_120[('sum', '         Mayor a', 'All')] > 0]
 
     #Exportar sap, sap2, mexico y 120 dias a un archivo de excel en hojas diferentes
-    writer = pd.ExcelWriter("Informe_1.xlsx", engine="xlsxwriter")
+    writer = pd.ExcelWriter("Informe_1_Programa.xlsx", engine="xlsxwriter")
     workbook = writer.book
     worksheet = workbook.add_worksheet("Base depurada")
     writer.sheets["Base depurada"] = worksheet
@@ -131,10 +131,10 @@ def informe_mexico_120(sap, sap2, l3):
     writer.save()
     return
 
-def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
+def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap, limites):
     """
-    Esta función genera las tablas y tabl;as dinamicas que se abren del archivo 
-    cartera general y las actualiza
+    Esta función genera las tablas y tablas dinamicas que se generan en un archivo de  
+    cartera general
     """
     def generate_pivot_table(data, filtro):
         """
@@ -161,9 +161,9 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     sap.insert(23, "Cartera a 30 Dias", sap[["Cartera A 025 Días","Cartera A 030 Días"]].sum(axis=1, min_count=1))
     sap.drop(["Cartera A 005 Días","Cartera A 010 Días","Cartera A 015 Días","Cartera A 020 Días","Cartera A 025 Días","Cartera A 030 Días"], axis=1, inplace=True)
     if sap["     Cartera Total"].sum() == sap["Cartera No Vencido"].sum() + sap["Cartera a 10 Dias"].sum() + sap["Cartera a 20 Dias"].sum() + sap["Cartera a 30 Dias"].sum() + sap["Cartera A 060 Días"].sum() + sap["Cartera A 090 Días"].sum() + sap["Cartera A 120 Días"].sum() + sap["         Mayor a"].sum():
-        check = "La suma desde 'Cartera total' hasta 'mayor a' da igual que 'Cartera Total'"
+        check = "La suma desde 'Cartera total' hasta 'mayor a' es igual 'Cartera Total'"
     else:
-        check = "La suma desde 'Cartera total' hasta 'mayor a' NO da igual que 'Cartera Total'"
+        check = "¡ATENCIÓN! La suma desde 'Cartera total' hasta 'mayor a' NO ES IGUAL A 'Cartera Total'"
     
     #CREACION DE TABLAS Y VARIABLES PARA MODIFICAR EL INFORME
     #sap2 equivale a "Data_Conceptos_Excluyentes"
@@ -181,6 +181,11 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
                             (sap2["Descripción cabecera pedido"].str.contains("recarga  $")),
                             ("     Cartera Total")
     ].sum()
+    suma_castigos = sap2.loc[
+                            (sap2["Descripción cabecera pedido"].str.contains("castigo")) |
+                            (sap2["No. Referencia"].str.contains("CASTIGO")),
+                            ("     Cartera Total")
+    ].sum()
     #R1, R2, R3, R4, R5 para colocar ne las respectivas hojas del libro de excel
     regiones = sap["Region"].drop_duplicates().to_list()
     regiones.sort()
@@ -194,19 +199,31 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     detalle_kits = sap[sap["Producto"] == 10]
     #TABLAS DINAMICAS
     #Hoja Informe_Acuerdos
-    informe_acuerdos = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull())].pivot_table(
+    informe_acuerdos_temporal = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull())].pivot_table(
                         index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
                         values=["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"], 
                         aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
-    informe_acuerdos.columns = [j for i,j in informe_acuerdos.columns]
-    informe_acuerdos = informe_acuerdos[["Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total"]] #Reordenar el orden de las columnas
-    info_temporal = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D")].pivot_table(
+    informe_acuerdos_temporal.columns = [j for i,j in informe_acuerdos_temporal.columns]
+    informe_acuerdos_temporal.reset_index(inplace=True)
+    
+    informe_acuerdos = sap[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D")].pivot_table(
                         index=["No. de Cliente","No. Identificación Fiscal","Descripción"],
                         values=["     Cartera Total"], 
                         aggfunc=["sum"]) #Esta dataframe se debe imprimir con una fila antes, debido a que al quitar el header se imprime una despues
-    informe_acuerdos.insert(8, "Total Vencida", informe_acuerdos.iloc[:, 1:8].sum(axis=1))
-    informe_acuerdos["Acuerdo"] = info_temporal[("sum","     Cartera Total")]
+    informe_acuerdos.columns = [j for i,j in informe_acuerdos.columns]
     informe_acuerdos.reset_index(inplace=True)
+    informe_acuerdos.rename(columns={"     Cartera Total": "Total-Cartera Acuerdo"}, inplace=True)#Renombrar la suma de cartera total por acuerdo
+    informe_acuerdos["Cartera No Vencido"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera No Vencido"])
+    informe_acuerdos["Cartera a 10 Dias"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera a 10 Dias"])
+    informe_acuerdos["Cartera a 20 Dias"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera a 20 Dias"])
+    informe_acuerdos["Cartera a 30 Dias"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera a 30 Dias"])
+    informe_acuerdos["Cartera A 060 Días"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera A 060 Días"])
+    informe_acuerdos["Cartera A 090 Días"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera A 090 Días"])
+    informe_acuerdos["Cartera A 120 Días"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera A 120 Días"])
+    informe_acuerdos["         Mayor a"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["         Mayor a"])
+    informe_acuerdos["     Cartera Total"] = informe_acuerdos["No. de Cliente"].map(informe_acuerdos_temporal.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["     Cartera Total"])
+    informe_acuerdos = informe_acuerdos[["No. de Cliente","No. Identificación Fiscal","Descripción","Cartera No Vencido","Cartera a 10 Dias","Cartera a 20 Dias","Cartera a 30 Dias","Cartera A 060 Días","Cartera A 090 Días","Cartera A 120 Días","         Mayor a","     Cartera Total", "Total-Cartera Acuerdo"]] #Reordenar el orden de las columnas
+    informe_acuerdos_temporal.insert(12, "Total Vencida", informe_acuerdos_temporal.iloc[:, 1:8].sum(axis=1))
     #HOJA "Kit abiertos"
     #primera tabla "abierto"
     kit_abiertos = detalle_kits[(detalle_kits["Status"] == "ABIERTO")].pivot_table(
@@ -245,6 +262,9 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     #HOJA "Agentes R1"
     r1_abiertos = generate_pivot_table(R1, "ABIERTO")
     r1_acuerdo = generate_pivot_table(R1, "ACUERDO")
+    #HOJA "Agentes R1"
+    r5_abiertos = generate_pivot_table(R5, "ABIERTO")
+    r5_acuerdo = generate_pivot_table(R5, "ACUERDO")
 
     #CERRADOS
     #Data cerrados
@@ -278,7 +298,7 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     cerrados_table_co05.reset_index(inplace=True)
 
     #GENERACION DE INFORME EN UN ARCHIVO DE EXCEL -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    writer = pd.ExcelWriter("Informe_Cartera_General_Program.xlsx", engine="xlsxwriter")
+    writer = pd.ExcelWriter("Informe_Cartera_General_Programa.xlsx", engine="xlsxwriter")
     workbook = writer.book
     #"Data_Conceptos_Excluyentes"
     worksheet = workbook.add_worksheet("Data_Conceptos_Excluyentes")
@@ -291,6 +311,8 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     par_exclu_inte.to_excel(writer, "Partidas Excluidas intereses", index=0, startrow=4, startcol=2)
     worksheet.write_string(par_exclu_inte.shape[0] + 6, 2, "Conceptos  Recargas en Línea")
     worksheet.write_number(par_exclu_inte.shape[0] + 6, 3, suma_recargas)
+    worksheet.write_string(par_exclu_inte.shape[0] + 7, 2, "Conceptos castigos")
+    worksheet.write_number(par_exclu_inte.shape[0] + 7, 3, suma_castigos)
     #DATA R1
     worksheet = workbook.add_worksheet("DATA R1")
     writer.sheets["DATA R1"] = worksheet
@@ -323,7 +345,7 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     worksheet = workbook.add_worksheet("Informe_Acuerdos")
     writer.sheets["Informe_Acuerdos"] = worksheet
     worksheet.write_string(0, 1, "INFORME CARTERA DE DISTRIBUIDORES EN ACUERDO DE PAGO CON CORTE")
-    informe_acuerdos.to_excel(writer, sheet_name="Informe_Acuerdos", startcol=2, startrow=4)
+    informe_acuerdos.to_excel(writer, sheet_name="Informe_Acuerdos", index=False, startcol=2, startrow=4)
     #Kit abiertos
     worksheet = workbook.add_worksheet("Kits abiertos")
     writer.sheets["Kits abiertos"] = worksheet
@@ -340,14 +362,22 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     otros_conceptos_abiertos.to_excel(writer, sheet_name="Otros conceptos abiertos", index=False, startrow=5, startcol=0)
     worksheet.write_string(otros_conceptos_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
     otros_conceptos_acuerdos.to_excel(writer, sheet_name="Otros conceptos abiertos", index=False, startrow=otros_conceptos_abiertos.shape[0] + 8, startcol=0)
-    #Agentes R4 Centro-Oriente
-    worksheet = workbook.add_worksheet("Agentes R4 Centro-Oriente")
-    writer.sheets["Agentes R4 Centro-Oriente"] = worksheet
+    #Agentes R5 Centro-Oriente
+    worksheet = workbook.add_worksheet("Agentes R5 Oriente")
+    writer.sheets["Agentes R5 Oriente"] = worksheet
     worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES  ZONA ORIENTE CON CORTE ")
     worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
-    r4_abiertos.to_excel(writer, sheet_name="Agentes R4 Centro-Oriente", index=False, startrow=5, startcol=0)
+    r5_abiertos.to_excel(writer, sheet_name="Agentes R5 Oriente", index=False, startrow=5, startcol=0)
+    worksheet.write_string(r5_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
+    r5_acuerdo.to_excel(writer, sheet_name="Agentes R5 Oriente", index=False, startrow=r5_abiertos.shape[0] + 8, startcol=0)
+    #Agentes R4 Centro
+    worksheet = workbook.add_worksheet("Agentes R4 Centro")
+    writer.sheets["Agentes R4 Centro"] = worksheet
+    worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES  ZONA ORIENTE CON CORTE ")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES ABIERTOS")
+    r4_abiertos.to_excel(writer, sheet_name="Agentes R4 Centro", index=False, startrow=5, startcol=0)
     worksheet.write_string(r4_abiertos.shape[0] + 7, 2, "DISTRIBUIDORES EN ACUERDO DE PAGO CON CARTERA ADICIONAL")
-    r4_acuerdo.to_excel(writer, sheet_name="Agentes R4 Centro-Oriente", index=False, startrow=r4_abiertos.shape[0] + 8, startcol=0)
+    r4_acuerdo.to_excel(writer, sheet_name="Agentes R4 Centro", index=False, startrow=r4_abiertos.shape[0] + 8, startcol=0)
     #Agentes R3 SurOccidente
     worksheet = workbook.add_worksheet("Agentes R3 SurOccidente")
     writer.sheets["Agentes R3 SurOccidente"] = worksheet
@@ -380,11 +410,71 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap):
     worksheet = workbook.add_worksheet("Agentes cerrados")
     writer.sheets["Agentes cerrados"] = worksheet
     worksheet.write_string(1, 1, "CARTERA DISTRIBUIDORES CERRADOS A CORTE ")
-    worksheet.write_string(4, 1, "DISTRIBUIDORES CERRADOS ORIENTE")
+    worksheet.write_string(4, 1, "DISTRIBUIDORES CERRADOS CO03")
     cerrados_table_co03.to_excel(writer, sheet_name="Agentes cerrados", index=False, startrow=5, startcol=0)
-    worksheet.write_string(cerrados_table_co03.shape[0] + 7, 2, "DISTRIBUIDORES CERRADOS OCCIDENTE")
+    worksheet.write_string(cerrados_table_co03.shape[0] + 7, 1, "DISTRIBUIDORES CERRADOS CO04")
     cerrados_table_co04.to_excel(writer, sheet_name="Agentes cerrados", index=False, startrow=cerrados_table_co03.shape[0] + 8, startcol=0)
-    worksheet.write_string(cerrados_table_co03.shape[0] + 8 + cerrados_table_co04.shape[0] + 7, 2, "DISTRIBUIDORES CERRADOS COSTA")
+    worksheet.write_string(cerrados_table_co03.shape[0] + 8 + cerrados_table_co04.shape[0] + 7, 1, "DISTRIBUIDORES CERRADOS CO05")
     cerrados_table_co05.to_excel(writer, sheet_name="Agentes cerrados", index=False, startrow=cerrados_table_co03.shape[0] + 8 + cerrados_table_co04.shape[0] + 8, startcol=0)
+    writer.save()
+    #-----------------------------------------------------------------------------------------------------------------------
+    #Informe de cartera semanal (comparatico) y Dashboard
+    #-----------------------------------------------------------------------------------------------------------------------
+    #comparativo
+    comparativo = pd.read_csv("templates/cs.csv", sep=";")
+    table1 = sap.pivot_table(index=["No. de Cliente"],
+                    values=["Cartera No Vencido", " Cartera Vencida"],
+                    aggfunc="sum")
+    table1.reset_index(inplace=True)
+    comparativo["C.Corriente"] = comparativo["Cliente"].map(table1.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["Cartera No Vencido"])
+    comparativo["C. Vencida"] = comparativo["Cliente"].map(table1.drop_duplicates("No. de Cliente").set_index("No. de Cliente")[" Cartera Vencida"])
+    marcacion = (('arr', 'arr'), ('ac', 'AC'), ('plan', 'plan'), ('presta', 'presta'), ('desem', 'presta'))
+    for i in marcacion:
+        sap.loc[(sap["Ind. Cta Esp."] == "D") & (sap["Descripción cabecera pedido"].str.contains(i[0])), ("Descripción.1")] = i[1]
+    table2 = sap[sap["Ind. Cta Esp."] == "D"].pivot_table(
+                index=["No. de Cliente"],
+                values=["     Cartera Total"],
+                columns=["Descripción.1"],
+                aggfunc="sum",
+                fill_value=0)
+    table2.columns = [j for i,j in table2.columns]
+    table2.reset_index(inplace=True)
+    comparativo["Acuerdo P."] = comparativo["Cliente"].map(table2.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["AC"])
+    comparativo["Acuerdo Pago Arriendos"] = comparativo["Cliente"].map(table2.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["arr"])
+    comparativo["Credito Plan de Blindage"] = comparativo["Cliente"].map(table2.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["plan"])
+    comparativo["Prestamo"] = comparativo["Cliente"].map(table2.drop_duplicates("No. de Cliente").set_index("No. de Cliente")["presta"])
+    #dashboard
+    def buscar_v(df_to_search, df_searched, new_col, key_col_searched, key_col_to_search, result_col, loc):
+        """
+        Función que realiza un buscarv entre 2 dataframe indicando llaves a evaluar y los inserta en el dataframe en la columna loc indicada
+        """
+        df_to_search = pd.concat([df_to_search[i] for i in range(len(df_to_search))], axis=0)
+        df_searched.insert(loc, new_col, df_searched[key_col_searched].map(df_to_search.drop_duplicates(key_col_to_search).set_index(key_col_to_search)[result_col]))
+        return df_searched
+        
+    dashboard = limites.iloc[0:limites["Código"].isnull().idxmax(axis=0), [0,1,2,19,20]] #obtener los ditrivuidoores de la primera tabla de limites
+    dashboard.insert(3, "Limite de credito", dashboard["Código"].map(cupos.drop_duplicates("Cliente").set_index("Cliente")["Límite crédito"]))
+    dashboard = buscar_v([kit_abiertos,kit_acuerdo], dashboard, "Kits Corriente", "Nit", "No. Identificación Fiscal", "Cartera No Vencido", 4)
+    dashboard = buscar_v([kit_abiertos,kit_acuerdo], dashboard, "Kits Vencido", "Nit", "No. Identificación Fiscal", "Total Vencida", 5)
+    dashboard = buscar_v([otros_conceptos_abiertos,otros_conceptos_acuerdos], dashboard, "Otros Conceptos Corriente", "Nit", "No. Identificación Fiscal", "Cartera No Vencido", 6)
+    dashboard = buscar_v([otros_conceptos_abiertos,otros_conceptos_acuerdos], dashboard, "Otros Conceptos Vencida", "Nit", "No. Identificación Fiscal", "Total Vencida", 7)
+    dashboard = buscar_v([informe_acuerdos], dashboard, "Total acuerdo de pago", "Nit", "No. Identificación Fiscal", "Total-Cartera Acuerdo", 8)
+    #columnas “Valor Incumplimiento Acuerdo de Pago” y “Cuotas Incumplimiento Acuerdo de Pago” 
+    table3 = sap[(sap["Ind. Cta Esp."] == "D") & (sap[" Cartera Vencida"] > 0)].pivot_table(
+                index=["No. Identificación Fiscal"],
+                values=[" Cartera Vencida"],
+                aggfunc=["sum", "count"])
+    table3.reset_index(inplace=True)
+    dashboard = buscar_v([table3], dashboard, "Valor Incumplimiento Acuerdo de Pago", "Nit", ("No. Identificación Fiscal",""), ('sum', ' Cartera Vencida'), 9)
+    dashboard = buscar_v([table3], dashboard, "Cuotas Incumplimiento Acuerdo de Pago", "Nit", ("No. Identificación Fiscal",""), ('count', ' Cartera Vencida'), 10)
+    #Generacion del informe 4
+    writer = pd.ExcelWriter("Informe_3_Programa.xlsx", engine="xlsxwriter")
+    workbook = writer.book
+    worksheet = workbook.add_worksheet("Comparativo")
+    writer.sheets["Comparativo"] = worksheet
+    comparativo.to_excel(writer, sheet_name="Comparativo", index=False, startrow= 1, startcol=1)
+    worksheet = workbook.add_worksheet("Dashboard")
+    writer.sheets["Dashboard"] = worksheet
+    dashboard.to_excel(writer, sheet_name="Dashboard", index=False, startcol=1, startrow=1)
     writer.save()
     return check

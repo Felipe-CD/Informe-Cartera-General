@@ -4,17 +4,22 @@ from functions import clean_data, informe_mexico_120, cartera_general
 import pandas as pd
 from numpy import nan
 
+app = Flask(__name__)
+app.secret_key = "super_secreto"
+ui = FlaskUI(app, width=1020, height=650)                 # Creacion de la IU (UI)
+
 def read_files(name_sap, name_limites, name_cupos, name_cerrados_sap):
     """
     Esta función lee los archivos seleccionados por el usuario
     en la interfaz grafica y verifica si existe un error en ellos
     """
     #Nombres de columna de los archivos
+    lista_errores = []
     sap_headers = ['No. de Cliente', 'Descripción', 'No. Identificación Fiscal', 'Clase Doc.', 'Ind. Cta Esp.',
         'No. Referencia', 'No. Factura', 'No. Doc. Contable', 'Fecha Contabilización', 'Fecha Documento', 
         'Entrada Documento', 'Fecha Base', 'Fecha Vencimiento', 'Cartera No Vencido', 'Cartera A 005 Días', 
         'Cartera A 010 Días', 'Cartera A 015 Días', 'Cartera A 020 Días', 'Cartera A 025 Días', 'Cartera A 030 Días', 
-        'Cartera A 060 Días', 'Cartera A 090 Días', 'Cartera A 120 Días', '         Mayor a', 'Días Mora', 
+        'Cartera A 060 Días', 'Cartera A 090 Días', 'Cartera A 120 Días', "         Mayor a", 'Días Mora', 
         ' Cartera Vencida', '     Cartera Total', 'Producto', 'Tipo_Producto', '%Participación', 'Zona de Ventas', 
         'Descripción.1', 'Descripción cabecera pedido', 'Organización de Ventas', 'Descripción.2', 
         'Canal de Distribución', 'Descripción.3', 'Clase Pedido', 'Descr.Clase', 'No.Pedido', 'Inactivo', 
@@ -52,25 +57,26 @@ def read_files(name_sap, name_limites, name_cupos, name_cerrados_sap):
     for i in sap_headers:
         if i not in sap.columns.to_list():
             flag = True
-            flash(f"No existe la columna ({i}) en el archivo SAP")
+            lista_errores.append(f"No existe la columna '{i}' en el archivo SAP")
+    for i in cerrados_sap_headers:
         if i not in cerrados_sap.columns.to_list():
             flag = True
-            flash(f"No existe la columna ({i}) en el archivo SAP CERRADOS")
+            lista_errores.append(f"No existe la columna '{i}' en el archivo SAP CERRADOS")
     for i in limites_headers:
         if i not in limites.columns.to_list():
             flag = True
-            flash(f"No existe la columna ({i}) en el archivo Limites")
+            lista_errores.append(f"No existe la columna '{i}' en el archivo Limites")
     for i in cupos_headers:
         if i not in cupos.columns.to_list():
             flag = True
-            flash(f"No existe la columna ({i}) en el archivo Cupos")
+            lista_errores.append(f"No existe la columna '{i}' en el archivo Cupos")
+    for i in cerrados_headers:
+        if i not in cerrados.columns.to_list():
+            flag = True
+            lista_errores.append(f"No existe la columna '{i}' en el archivo {name_limites} en la hoja (Cerrados)")
 
-    return sap, limites, cupos, cerrados, cerrados_sap, flag
+    return sap, limites, cupos, cerrados, cerrados_sap, flag, lista_errores
 
-
-app = Flask(__name__)
-app.secret_key = "super_secreto"
-#ui = FlaskUI(app, width=1020, height=650)                 # Creacion de la IU (UI)
 def shutdown_server():
     func = request.environ.get('werkzeug.server.shutdown')
     if func is None:
@@ -83,14 +89,13 @@ def home():
     Esta pagina es la de inicio, en donde se seleccionan los
     archivos a trabajar
     """
-    global sap, limites, cupos, cerrados, cerrados_sap, sap2
+    global sap, limites, cupos, cerrados, cerrados_sap, sap2, lista_errores
     if request.method == "POST":
         name_sap = request.files["name_sap"]
         name_limites = request.files["name_limit"]
         name_cupos = request.files["name_cupos"]
         name_cerrados_sap = request.files["name_cerrados_sap"]
-        salida = request.form["namesal"] + "xlsx"
-        sap, limites, cupos, cerrados, cerrados_sap, flag = read_files(name_sap, name_limites, name_cupos, name_cerrados_sap) #Lectura de los archivos
+        sap, limites, cupos, cerrados, cerrados_sap, flag, lista_errores = read_files(name_sap, name_limites, name_cupos, name_cerrados_sap) #Lectura de los archivos
         if flag == True:
             return redirect(url_for("error"))
         else:
@@ -100,7 +105,8 @@ def home():
 
 @app.route("/error")
 def error():
-    return render_template("errors.html")
+    global lista_errores
+    return render_template("errors.html", lista_errores = lista_errores)
 
 @app.route("/filtres", methods=["GET", "POST"])
 def filtres():
@@ -135,8 +141,8 @@ def execute():
     global sap, limites, cupos, sap2, filtros, check1, check2, l3, cerrados, cerrados_sap
     sap, limites, cupos, sap2, check1, l3 = clean_data(sap, limites, cupos, filtros)
     flash(check1)
-    informe_mexico_120(sap, sap2, l3)
-    check2 = cartera_general(sap, sap2, cupos, cerrados, cerrados_sap)
+    informe_mexico_120(sap, sap2, l3, filtros)
+    check2 = cartera_general(sap, sap2, cupos, cerrados, cerrados_sap, limites)
     flash(check2)
     return render_template("execute.html")
 
@@ -145,5 +151,5 @@ def shutdown():
     shutdown_server()
     return render_template("close.html")
 
-app.run(debug=True)
-#ui.run()
+#app.run(debug=True)
+ui.run()

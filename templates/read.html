@@ -1,9 +1,15 @@
 {% extends "indexf.html" %}
 
 {% block content %}
-<p></p>
-<h3 class="text-center">Cartera General</h3>
-<p></p>
+<br>
+<h3 class="text-center">Programa Cartera General</h3>
+<p style="margin: 10px;padding-left: 25px; padding-right: 25px; text-align: justify">
+    Este programa genera 3 archivos de excel: <strong>Informe_1_Programa.xlsx, Informe_Cartera_General_Programa.xlsx y Informe_3_Programa.xlsx</strong>
+    los cuales deben estar cerrados de existir en el mismo directorio del programa, de lo contrario hacer caso omiso a esto.
+    A continuación, seleccione los archivos indicados y presione <em>Continuar</em> para la ejecución del programa. Para salir presione
+    el boton <em>Salir</em> y cierre la ventana.
+</p>
+<br>
 <form action="#" method="POST" enctype="multipart/form-data">
     <div class="container">
         <div class="row g-4">
@@ -23,17 +29,14 @@
                 <label for="formGroupExampleInput" class="form-label">Seleccione el archivo Cerrados de SAP</label>
                 <input class="form-control form-control-sm" id="formFileSm" accept=".xlsx" type="file" name="name_cerrados_sap" required>
             </div>
-            <div class="col-12">
-                <label for ="formGroupExampleInput" class="form-label">Ingresa nombre para el archivo de salida (Sin extension .xlsx)</label>
-                <div class="form-floating mb-3">
-                    <input type="text" class="form-control" id="floatingInput" name="namesal" required>
-                    <label for="floatingInput">Archivo de salida</label>
-                </div>
-            </div>
         </div>
         <div class="d-grid gap-2">
-            <button type="submit" class="btn btn-primary btn-sm">Continuar</button>
+            <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 20px">Continuar</button>
+        </div>
+        <div class="d-grid gap-2">
+            <a href="/shutdown" class="btn btn-primary btn-sm" style="margin-top: 20px">Salir</a>
         </div>
     </div>    
 </form>
+
 {% endblock %}

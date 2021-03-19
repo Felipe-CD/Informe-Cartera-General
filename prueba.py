@@ -307,7 +307,6 @@ cerrados_table_co05.insert(8, "Total Vencida", cerrados_table_co05.iloc[:, 1:8].
 cerrados_table_co05.reset_index(inplace=True)
 
 
-
 #MODIFICACION DEL INFORME -------------------------------------------------------------
 #Abrir el archivo de cartera general
 book = load_workbook("xxx.xlsx")

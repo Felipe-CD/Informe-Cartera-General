@@ -1,12 +1,19 @@
 {% extends "indexf.html" %}
 
 {% block content %}
-<h3>El programa esta ejecutandose...</h3>
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        {% for msg in messages %}
-            <p>{{msg}}</p>
-        {% endfor %}
-        {% endif %}
-    {% endwith %}
+<main class="container">
+    <div class="bg-light p-5 rounded">
+        <h1>El programa ha finalizado</h1>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for msg in messages %}
+                    <p class="lead">{{msg}}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <p class="lead">El programa ha creado los archivos de excel en el directorio donde esta el programa.</p>
+        <a class="btn btn-lg btn-primary" href="/" role="button">Inicio &raquo;</a>
+        <a class="btn btn-lg btn-primary" href="/shutdown" role="button">Finalizar &raquo;</a>
+    </div>
+</main>
 {% endblock %}
