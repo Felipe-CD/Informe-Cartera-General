@@ -2,15 +2,16 @@ import pandas as pd
 from numpy import nan
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
-
-sap = pd.read_excel("cartera 15 02 2021 virgen 1.XLS.xlsx",
+import os
+os.getcwd()
+sap = pd.read_excel("C:/Users/icm3253b/Downloads/cartera 31 03 2021 informes.xlsx",
                     skiprows=[0,1,2,3,4,5,6,7,9], usecols="B:AV")
-cupos = pd.read_excel("cupos prepago.xlsx", skiprows=[0,1,2,4], usecols=[1,3,4,5,6,7,8,9])
-cerrados_sap = pd.read_excel("cerrados-sap.xlsx", skiprows=[0,1,2,3,4,5,6,7,9], usecols="B:AV")
-cerrados = pd.read_excel("Copia de LIMITES  22012021.xlsx", sheet_name="cerrados")
+cupos = pd.read_excel("cupos prepago-PRUEBA.xlsx", skiprows=[0,1,2,4], usecols=[1,3,4,5,6,7,8,9])
+cerrados_sap = pd.read_excel("C:/Users/icm3253b/Downloads/cartera 31 03 2021 informes cerrados.xlsx", skiprows=[0,1,2,3,4,5,6,7,9], usecols="B:AV")
+cerrados = pd.read_excel("Copia de LIMITES  22012021-PRUEBA.xlsx", sheet_name="cerrados")
 limites = pd.ExcelFile("Copia de LIMITES  22012021.xlsx")
 print(limites.sheet_names)
-limites = pd.read_excel("Copia de LIMITES  22012021.xlsx", sheet_name="LIMITES")
+limites = pd.read_excel("Copia de LIMITES  22012021-PRUEBA.xlsx", sheet_name="LIMITES")
 lista = [x for x in sap.columns.to_list() if 'Cartera A 000' in x]
 for i in lista:
     sap.drop(i, axis=1, inplace=True)
@@ -80,14 +81,15 @@ for i in l3:
 
 """CREACION DE TABLAS DINAMICAS"""
 #MEXICO
-columns_to_analize1 = ['Cartera A 005 Días', 'Cartera A 010 Días', 'Cartera A 015 Días', 'Cartera A 020 Días', 
+columns_to_analize1 = ['Cartera A 005 Días', 'Cartera A 010 Días', 'Cartera A 015 Días', 'Cartera A 020 Días',
         'Cartera A 025 Días', 'Cartera A 030 Días']
-columns_to_analize2 = ['Cartera No Vencido', 'Cartera A 060 Días', 'Cartera A 090 Días', 'Cartera A 120 Días', 
+columns_to_analize2 = ['Cartera No Vencido', 'Cartera A 060 Días', 'Cartera A 090 Días', 'Cartera A 120 Días',
         '         Mayor a']
 columns_to_analize11 = ['Cartera A 005 Días', '#5', 'Cartera A 010 Días', '#10', 'Cartera A 015 Días', '#15',
          'Cartera A 020 Días', '#20', 'Cartera A 025 Días', '#25', 'Cartera A 030 Días', '#30']
 sap[columns_to_analize1] = sap[columns_to_analize1].replace({0:nan})
 sap[columns_to_analize2] = sap[columns_to_analize2].replace({0:nan})
+sap[sap["Region"].isnull()]
 regiones = sap["Region"].drop_duplicates().to_list()
 regiones.sort()
 mexico = pd.DataFrame(columns=["Region"]+columns_to_analize11+columns_to_analize2)

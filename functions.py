@@ -25,8 +25,8 @@ def clean_data(sap, limites, cupos, filtros):
     #Las partidas quitadas con los filtros se colocan en un dataframe diferente para dejarlas en una hoja aparte
     sap2 = pd.concat([sap2[i] for i in range(len(sap2))], axis=0)
     sap2.reset_index(drop=True, inplace=True)
-    #Buscar acuerdos en el archivo limites para cada partida
-    sap["Status"] = sap["No. Identificación Fiscal"].map(limites.drop_duplicates("Nit").set_index("Nit")["ACUERDO"])
+    #Buscar acuerdos en el archivo limites para cada partida con el codigo de SAP
+    sap["Status"] = sap["No. de Cliente"].map(limites.drop_duplicates("Código").set_index("Código")["ACUERDO"])
     #Colocar "D" en cada partida que tiene la palabra "Cuota" en la columna descripcion cabecera pedido
     sap.loc[(sap["Descripción cabecera pedido"].str.contains("cuota")) & (sap["Ind. Cta Esp."].isnull()), ("Ind. Cta Esp.")] = "D"
     #identificar cada agente que tenga por lo menos una D, y luego a todas las partidas de esos agentes colocarle “ACUERDO” en status
@@ -55,7 +55,7 @@ def clean_data(sap, limites, cupos, filtros):
     sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), (" Cartera Vencida")] = 0
     sap.loc[(sap["Descripción"].str.contains("LATCOM")) & (sap["Días Mora"] > 1500), ("Días Mora")] = -1
     #Buscar region en el archivo limites para cada partida y anexarla despues de columna 2 "No. Identificación Fiscal"
-    sap.insert(3, "Region", sap["No. Identificación Fiscal"].map(limites.drop_duplicates("Nit").set_index("Nit")["Nueva Region"]))
+    sap.insert(3, "Region", sap["No. de Cliente"].map(limites.drop_duplicates("Código").set_index("Código")["Nueva Region"]))
     l1 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."].isnull()), ("Descripción")].drop_duplicates().to_list()
     l2 = sap.loc[(sap["Status"] == "ACUERDO") & (sap["Ind. Cta Esp."] == "D"), ("Descripción")].drop_duplicates().to_list()
     l3 = [x for x in l1 if x not in l2] #Distribuidores que se cambio de ACUERDO A ABIERTO (los l1 que no estan en l2)
@@ -164,14 +164,14 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap, limites):
         check = "La suma desde 'Cartera total' hasta 'mayor a' es igual 'Cartera Total'"
     else:
         check = "¡ATENCIÓN! La suma desde 'Cartera total' hasta 'mayor a' NO ES IGUAL A 'Cartera Total'"
-    
+
     #CREACION DE TABLAS Y VARIABLES PARA MODIFICAR EL INFORME
     #sap2 equivale a "Data_Conceptos_Excluyentes"
     #par_exclu_inte equivale a la data en "Partidas Excluidas intereses"
     par_exclu_inte = sap2.loc[
-                            (sap2["Descripción cabecera pedido"].str.contains("valor presente neto")) | 
+                            (sap2["Descripción cabecera pedido"].str.contains("valor presente neto")) |
                             (sap2["Descripción cabecera pedido"].str.contains("vpn")),
-                            ("No. de Cliente","Descripción","No. Identificación Fiscal","Cartera No Vencido","Días Mora"," Cartera Vencida","     Cartera Total")
+                            ("No. de Cliente","Descripción","No. Doc. Contable","Cartera No Vencido","Días Mora"," Cartera Vencida","     Cartera Total")
     ]
     par_exclu_inte["Descripción_2"] = "COMPENSACION INTERESES PRESTAMO DIS"
     #suma_recargas equivale a la celda (Conceptos Recargas en Línea) de la hoja "Partidas Excluidas intereses"
@@ -451,8 +451,8 @@ def cartera_general(sap,sap2, cupos, cerrados, cerrados_sap, limites):
         df_to_search = pd.concat([df_to_search[i] for i in range(len(df_to_search))], axis=0)
         df_searched.insert(loc, new_col, df_searched[key_col_searched].map(df_to_search.drop_duplicates(key_col_to_search).set_index(key_col_to_search)[result_col]))
         return df_searched
-        
-    dashboard = limites.iloc[0:limites["Código"].isnull().idxmax(axis=0), [0,1,2,19,20]] #obtener los ditrivuidoores de la primera tabla de limites
+
+    dashboard = limites.iloc[0:limites["Código"].isnull().idxmax(axis=0), [0,1,2,19,20]] #obtener los ditribuidoores de la primera tabla de limites
     dashboard.insert(3, "Limite de credito", dashboard["Código"].map(cupos.drop_duplicates("Cliente").set_index("Cliente")["Límite crédito"]))
     dashboard = buscar_v([kit_abiertos,kit_acuerdo], dashboard, "Kits Corriente", "Nit", "No. Identificación Fiscal", "Cartera No Vencido", 4)
     dashboard = buscar_v([kit_abiertos,kit_acuerdo], dashboard, "Kits Vencido", "Nit", "No. Identificación Fiscal", "Total Vencida", 5)

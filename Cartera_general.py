@@ -132,7 +132,7 @@ def filtres():
         lista_filtros2 = request.form["lista2"]
         session["lista_filtros1"] = lista_filtros1
         session["lista_filtros2"] = lista_filtros2
-        return redirect(url_for("execute"))    
+        return redirect(url_for("execute"))
     else:
         return render_template("filtres.html", f=filtros)
 
